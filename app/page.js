@@ -8,6 +8,7 @@ export default function Home() {
   const [currentColor, setCurrentColor] = useState("#ff4b81")
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
+  const [isErasing, setIsErasing] = useState(false)
   const canvasRef = useRef(null)
   const contextRef = useRef(null)
   const historyRef = useRef([])
@@ -123,9 +124,30 @@ export default function Home() {
     setDrawingBase64String("")
   }
 
+  const toggleEraser = () => {
+    const ctx = contextRef.current
+    if (!ctx) return
+    if (isErasing) {
+      ctx.globalCompositeOperation = "source-over"
+      ctx.strokeStyle = currentColor
+      ctx.lineWidth = 2
+      setIsErasing(false)
+    } else {
+      ctx.globalCompositeOperation = "destination-out"
+      ctx.lineWidth = 6
+      setIsErasing(true)
+    }
+  }
+
   const changeColor = (color) => {
     setCurrentColor(color)
     if (contextRef.current) {
+      // Picking a colour exits eraser mode
+      if (isErasing) {
+        contextRef.current.globalCompositeOperation = "source-over"
+        contextRef.current.lineWidth = 2
+        setIsErasing(false)
+      }
       contextRef.current.strokeStyle = color
     }
   }
@@ -178,7 +200,7 @@ export default function Home() {
           onTouchStart={startDrawing}
           onTouchMove={draw}
           onTouchEnd={stopDrawing}
-          className="w-full aspect-[5/4] border-[3px] border-black rounded-lg bg-white block cursor-crosshair touch-none"
+          className={`w-full aspect-[5/4] border-[3px] border-black rounded-lg bg-white block touch-none ${isErasing ? "cursor-cell" : "cursor-crosshair"}`}
         />
 
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -217,6 +239,17 @@ export default function Home() {
               aria-label="Redo"
             >
               ↪
+            </button>
+            <button
+              type="button"
+              onClick={toggleEraser}
+              className={`px-4 py-2 rounded-full font-semibold text-sm cursor-pointer transition ease-out duration-150 ${
+                isErasing
+                  ? "bg-white text-[#111] hover:bg-gray-200 active:bg-gray-300"
+                  : "bg-[#333] text-white hover:bg-[#444] active:bg-[#555]"
+              }`}
+            >
+              Eraser
             </button>
             <button
               type="button"
