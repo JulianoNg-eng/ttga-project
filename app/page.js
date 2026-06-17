@@ -6,8 +6,12 @@ export default function Home() {
   const [drawingBase64String, setDrawingBase64String] = useState("")
   const [isDrawing, setIsDrawing] = useState(false)
   const [currentColor, setCurrentColor] = useState("#ff4b81")
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
   const canvasRef = useRef(null)
   const contextRef = useRef(null)
+  const historyRef = useRef([])
+  const redoStackRef = useRef([])
 
   const colors = ["#ff4b81", "#000000", "#4b8bff", "#4bff81", "#ffeb3b", "#ff9800"]
 
@@ -18,7 +22,7 @@ export default function Home() {
     // Match ESP32 screen size exactly: 160x128
     canvas.width = 160
     canvas.height = 128
-    
+
     const context = canvas.getContext("2d")
     context.lineCap = "round"
     context.lineJoin = "round"
@@ -29,7 +33,19 @@ export default function Home() {
     // Fill with white background
     context.fillStyle = "white"
     context.fillRect(0, 0, canvas.width, canvas.height)
+
+    // Save initial blank state as history base
+    historyRef.current = [context.getImageData(0, 0, canvas.width, canvas.height)]
   }, [])
+
+  const saveSnapshot = () => {
+    const canvas = canvasRef.current
+    const context = contextRef.current
+    historyRef.current.push(context.getImageData(0, 0, canvas.width, canvas.height))
+    redoStackRef.current = []
+    setCanUndo(true)
+    setCanRedo(false)
+  }
 
   const getPos = (e, canvas) => {
     const rect = canvas.getBoundingClientRect()
@@ -64,10 +80,35 @@ export default function Home() {
     contextRef.current.closePath()
     setIsDrawing(false)
 
-    // Convert canvas to base64 as simple 8-bit PNG
     const canvas = canvasRef.current
+    saveSnapshot()
     const base64 = canvas.toDataURL("image/png")
     setDrawingBase64String(base64)
+  }
+
+  const undo = () => {
+    if (historyRef.current.length <= 1) return
+    const canvas = canvasRef.current
+    const context = contextRef.current
+    redoStackRef.current.push(historyRef.current.pop())
+    const prev = historyRef.current[historyRef.current.length - 1]
+    context.putImageData(prev, 0, 0)
+    const isBlank = historyRef.current.length === 1
+    setCanUndo(!isBlank)
+    setCanRedo(true)
+    setDrawingBase64String(isBlank ? "" : canvas.toDataURL("image/png"))
+  }
+
+  const redo = () => {
+    if (redoStackRef.current.length === 0) return
+    const canvas = canvasRef.current
+    const context = contextRef.current
+    const next = redoStackRef.current.pop()
+    historyRef.current.push(next)
+    context.putImageData(next, 0, 0)
+    setCanUndo(true)
+    setCanRedo(redoStackRef.current.length > 0)
+    setDrawingBase64String(canvas.toDataURL("image/png"))
   }
 
   const clearCanvas = () => {
@@ -75,6 +116,10 @@ export default function Home() {
     const context = contextRef.current
     context.fillStyle = "white"
     context.fillRect(0, 0, canvas.width, canvas.height)
+    historyRef.current = [context.getImageData(0, 0, canvas.width, canvas.height)]
+    redoStackRef.current = []
+    setCanUndo(false)
+    setCanRedo(false)
     setDrawingBase64String("")
   }
 
@@ -154,13 +199,33 @@ export default function Home() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={clearCanvas}
-            className="px-4 py-2 rounded-full bg-[#333] text-white font-semibold text-sm cursor-pointer transition ease-out duration-150 hover:bg-[#444] active:bg-[#555]"
-          >
-            Clear
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={undo}
+              disabled={!canUndo}
+              className="w-9 h-9 flex items-center justify-center rounded-full bg-[#333] text-white font-semibold text-base cursor-pointer transition ease-out duration-150 hover:bg-[#444] active:bg-[#555] disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="Undo"
+            >
+              ↩
+            </button>
+            <button
+              type="button"
+              onClick={redo}
+              disabled={!canRedo}
+              className="w-9 h-9 flex items-center justify-center rounded-full bg-[#333] text-white font-semibold text-base cursor-pointer transition ease-out duration-150 hover:bg-[#444] active:bg-[#555] disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="Redo"
+            >
+              ↪
+            </button>
+            <button
+              type="button"
+              onClick={clearCanvas}
+              className="px-4 py-2 rounded-full bg-[#333] text-white font-semibold text-sm cursor-pointer transition ease-out duration-150 hover:bg-[#444] active:bg-[#555]"
+            >
+              Clear
+            </button>
+          </div>
         </div>
 
         <button
