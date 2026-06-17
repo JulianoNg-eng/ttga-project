@@ -31,12 +31,19 @@ export default function Home() {
     context.fillRect(0, 0, canvas.width, canvas.height)
   }, [])
 
-  const startDrawing = (e) => {
-    const canvas = canvasRef.current
+  const getPos = (e, canvas) => {
     const rect = canvas.getBoundingClientRect()
-    const x = (e.clientX - rect.left) * (canvas.width / rect.width)
-    const y = (e.clientY - rect.top) * (canvas.height / rect.height)
+    const source = e.touches ? e.touches[0] : e
+    return {
+      x: (source.clientX - rect.left) * (canvas.width / rect.width),
+      y: (source.clientY - rect.top) * (canvas.height / rect.height),
+    }
+  }
 
+  const startDrawing = (e) => {
+    e.preventDefault()
+    const canvas = canvasRef.current
+    const { x, y } = getPos(e, canvas)
     contextRef.current.beginPath()
     contextRef.current.moveTo(x, y)
     setIsDrawing(true)
@@ -44,19 +51,16 @@ export default function Home() {
 
   const draw = (e) => {
     if (!isDrawing) return
-
+    e.preventDefault()
     const canvas = canvasRef.current
-    const rect = canvas.getBoundingClientRect()
-    const x = (e.clientX - rect.left) * (canvas.width / rect.width)
-    const y = (e.clientY - rect.top) * (canvas.height / rect.height)
-
+    const { x, y } = getPos(e, canvas)
     contextRef.current.lineTo(x, y)
     contextRef.current.stroke()
   }
 
-  const stopDrawing = () => {
+  const stopDrawing = (e) => {
     if (!isDrawing) return
-    
+    e?.preventDefault()
     contextRef.current.closePath()
     setIsDrawing(false)
 
@@ -113,10 +117,10 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#111] text-[#f5f5f5] flex items-center justify-center p-4 font-sans">
-      <div className="bg-[#1b1b1b] rounded-2xl p-6 max-w-2xl w-full flex flex-col gap-4 shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
+    <div className="min-h-screen bg-[#111] text-[#f5f5f5] flex items-center justify-center p-3 sm:p-4 font-sans">
+      <div className="bg-[#1b1b1b] rounded-2xl p-4 sm:p-6 max-w-2xl w-full flex flex-col gap-3 sm:gap-4 shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
 
-        <p className="m-0 text-center text-[1.6rem] font-semibold">
+        <p className="m-0 text-center text-[1.3rem] sm:text-[1.6rem] font-semibold">
           Drawing for K!
         </p>
 
@@ -126,18 +130,21 @@ export default function Home() {
           onMouseMove={draw}
           onMouseUp={stopDrawing}
           onMouseLeave={stopDrawing}
+          onTouchStart={startDrawing}
+          onTouchMove={draw}
+          onTouchEnd={stopDrawing}
           className="w-full aspect-[5/4] border-[3px] border-black rounded-lg bg-white block cursor-crosshair touch-none"
         />
 
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="inline-flex items-center gap-2">
             <span className="text-sm opacity-90">Colour</span>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5 sm:gap-2">
               {colors.map((color) => (
                 <button
                   key={color}
                   onClick={() => changeColor(color)}
-                  className={`w-7 h-7 rounded-full border-2 cursor-pointer transition-transform hover:scale-110 ${
+                  className={`w-8 h-8 sm:w-7 sm:h-7 rounded-full border-2 cursor-pointer transition-transform hover:scale-110 ${
                     currentColor === color ? "border-white scale-110" : "border-[#333]"
                   }`}
                   style={{ backgroundColor: color }}
@@ -150,7 +157,7 @@ export default function Home() {
           <button
             type="button"
             onClick={clearCanvas}
-            className="px-4 py-2 rounded-full bg-[#333] text-white font-semibold text-sm cursor-pointer transition ease-out duration-150 hover:bg-[#444]"
+            className="px-4 py-2 rounded-full bg-[#333] text-white font-semibold text-sm cursor-pointer transition ease-out duration-150 hover:bg-[#444] active:bg-[#555]"
           >
             Clear
           </button>
@@ -159,7 +166,7 @@ export default function Home() {
         <button
           type="button"
           onClick={handleSubmitData}
-          className="px-4 py-2.5 rounded-full bg-[#ff4b81] text-white font-semibold text-sm cursor-pointer transition ease-out duration-150 transform hover:bg-[#ff6b94] hover:-translate-y-[1px] hover:shadow-[0_4px_14px_rgba(255,75,129,0.45)] active:translate-y-[1px] active:shadow-none"
+          className="px-4 py-3 sm:py-2.5 rounded-full bg-[#ff4b81] text-white font-semibold text-sm cursor-pointer transition ease-out duration-150 transform hover:bg-[#ff6b94] hover:-translate-y-[1px] hover:shadow-[0_4px_14px_rgba(255,75,129,0.45)] active:translate-y-[1px] active:shadow-none"
         >
           Send to her
         </button>
