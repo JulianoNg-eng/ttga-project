@@ -2,25 +2,33 @@
 
 import { useState, useRef, useEffect } from "react"
 
+const INITIAL_COLORS = ["#ff4b81", "#000000", "#4b8bff", "#4bff81", "#ffeb3b", "#ff9800"]
+
+function isColorLight(hex) {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return (r * 299 + g * 587 + b * 114) / 1000 >= 128
+}
+
 export default function Home() {
   const [drawingBase64String, setDrawingBase64String] = useState("")
   const [isDrawing, setIsDrawing] = useState(false)
-  const [currentColor, setCurrentColor] = useState("#ff4b81")
+  const [currentColor, setCurrentColor] = useState(INITIAL_COLORS[0])
+  const [recentColors, setRecentColors] = useState(INITIAL_COLORS)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
   const [isErasing, setIsErasing] = useState(false)
   const canvasRef = useRef(null)
   const contextRef = useRef(null)
+  const colorInputRef = useRef(null)
   const historyRef = useRef([])
   const redoStackRef = useRef([])
-
-  const colors = ["#ff4b81", "#000000", "#4b8bff", "#4bff81", "#ffeb3b", "#ff9800"]
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    // Match ESP32 screen size exactly: 160x128
     canvas.width = 160
     canvas.height = 128
 
@@ -31,11 +39,9 @@ export default function Home() {
     context.strokeStyle = currentColor
     contextRef.current = context
 
-    // Fill with white background
     context.fillStyle = "white"
     context.fillRect(0, 0, canvas.width, canvas.height)
 
-    // Save initial blank state as history base
     historyRef.current = [context.getImageData(0, 0, canvas.width, canvas.height)]
   }, [])
 
@@ -83,8 +89,7 @@ export default function Home() {
 
     const canvas = canvasRef.current
     saveSnapshot()
-    const base64 = canvas.toDataURL("image/png")
-    setDrawingBase64String(base64)
+    setDrawingBase64String(canvas.toDataURL("image/png"))
   }
 
   const undo = () => {
@@ -139,10 +144,13 @@ export default function Home() {
     }
   }
 
-  const changeColor = (color) => {
+  const pickColor = (color) => {
     setCurrentColor(color)
+    setRecentColors(prev => {
+      const filtered = prev.filter(c => c !== color)
+      return [color, ...filtered].slice(0, 6)
+    })
     if (contextRef.current) {
-      // Picking a colour exits eraser mode
       if (isErasing) {
         contextRef.current.globalCompositeOperation = "source-over"
         contextRef.current.lineWidth = 2
@@ -158,7 +166,6 @@ export default function Home() {
       return
     }
 
-    // Strip the data:image/png;base64, prefix
     const base64Only = drawingBase64String.split(',')[1] || drawingBase64String
 
     try {
@@ -204,23 +211,48 @@ export default function Home() {
         />
 
         <div className="flex items-center justify-between gap-2 flex-wrap">
+
+          {/* Colour picker button + recent swatches */}
           <div className="inline-flex items-center gap-2">
-            <span className="text-sm opacity-90">Colour</span>
+            <button
+              type="button"
+              onClick={() => colorInputRef.current?.click()}
+              className="px-3 py-1.5 rounded-lg border-2 border-transparent font-semibold text-sm cursor-pointer transition ease-out duration-150 hover:opacity-85 active:opacity-70"
+              style={{
+                backgroundColor: currentColor,
+                color: isColorLight(currentColor) ? "#111" : "#fff",
+                borderColor: isColorLight(currentColor) ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.2)",
+              }}
+            >
+              Colour
+            </button>
+
+            {/* Hidden native colour input */}
+            <input
+              ref={colorInputRef}
+              type="color"
+              value={currentColor}
+              onChange={e => pickColor(e.target.value)}
+              className="absolute opacity-0 w-0 h-0 pointer-events-none"
+              aria-hidden="true"
+            />
+
             <div className="flex gap-1.5 sm:gap-2">
-              {colors.map((color) => (
+              {recentColors.map((color, i) => (
                 <button
-                  key={color}
-                  onClick={() => changeColor(color)}
+                  key={i}
+                  onClick={() => pickColor(color)}
                   className={`w-8 h-8 sm:w-7 sm:h-7 rounded-full border-2 cursor-pointer transition-transform hover:scale-110 ${
-                    currentColor === color ? "border-white scale-110" : "border-[#333]"
+                    currentColor === color && !isErasing ? "border-white scale-110" : "border-[#444]"
                   }`}
                   style={{ backgroundColor: color }}
-                  aria-label={`Select ${color} color`}
+                  aria-label={`Select colour ${color}`}
                 />
               ))}
             </div>
           </div>
 
+          {/* Action buttons */}
           <div className="flex items-center gap-2">
             <button
               type="button"
