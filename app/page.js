@@ -321,7 +321,7 @@ export default function Home() {
 
             {/* Colour picker popup */}
             {showPicker && (
-              <div className="absolute left-0 top-[calc(100%+8px)] z-50 bg-[#242424] border border-[#444] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] p-3 flex flex-col gap-2.5 min-w-[220px]">
+              <div className="absolute left-0 bottom-[calc(100%+8px)] z-50 bg-[#242424] border border-[#444] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] p-3 flex flex-col gap-2.5 min-w-[220px]">
 
                 {/* Recently used */}
                 <div>
