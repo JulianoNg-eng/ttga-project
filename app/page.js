@@ -3,12 +3,30 @@
 import { useState, useRef, useEffect } from "react"
 
 const INITIAL_COLORS = ["#ff4b81", "#000000", "#4b8bff", "#4bff81", "#ffeb3b", "#ff9800"]
+const ERASER_RADIUS = 6 // canvas pixels
 
 function isColorLight(hex) {
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
   const b = parseInt(hex.slice(5, 7), 16)
   return (r * 299 + g * 587 + b * 114) / 1000 >= 128
+}
+
+function pointToSegmentDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay
+  const len2 = dx * dx + dy * dy
+  if (len2 === 0) return Math.hypot(px - ax, py - ay)
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2))
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+}
+
+function strokeHitsPoint(stroke, px, py) {
+  const pts = stroke.points
+  if (pts.length === 1) return Math.hypot(px - pts[0].x, py - pts[0].y) <= ERASER_RADIUS
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (pointToSegmentDist(px, py, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= ERASER_RADIUS) return true
+  }
+  return false
 }
 
 export default function Home() {
@@ -22,8 +40,11 @@ export default function Home() {
   const canvasRef = useRef(null)
   const contextRef = useRef(null)
   const colorInputRef = useRef(null)
-  const historyRef = useRef([])
+  const historyRef = useRef([])       // [{ imageData, strokes }]
   const redoStackRef = useRef([])
+  const strokesRef = useRef([])       // all committed strokes on canvas
+  const currentStrokeRef = useRef(null)
+  const erasedRef = useRef(false)     // did the current eraser gesture remove anything?
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -42,13 +63,38 @@ export default function Home() {
     context.fillStyle = "white"
     context.fillRect(0, 0, canvas.width, canvas.height)
 
-    historyRef.current = [context.getImageData(0, 0, canvas.width, canvas.height)]
+    historyRef.current = [{ imageData: context.getImageData(0, 0, canvas.width, canvas.height), strokes: [] }]
   }, [])
+
+  // Redraw the canvas from scratch using the stored strokes array
+  const redrawStrokes = (strokes) => {
+    const canvas = canvasRef.current
+    const context = contextRef.current
+    context.fillStyle = "white"
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    strokes.forEach(stroke => {
+      if (stroke.points.length === 0) return
+      context.beginPath()
+      context.strokeStyle = stroke.color
+      context.lineWidth = 2
+      context.lineCap = "round"
+      context.lineJoin = "round"
+      context.moveTo(stroke.points[0].x, stroke.points[0].y)
+      stroke.points.slice(1).forEach(p => context.lineTo(p.x, p.y))
+      context.stroke()
+    })
+    // Restore drawing context for the active pen colour
+    context.strokeStyle = currentColor
+    context.lineWidth = 2
+  }
 
   const saveSnapshot = () => {
     const canvas = canvasRef.current
     const context = contextRef.current
-    historyRef.current.push(context.getImageData(0, 0, canvas.width, canvas.height))
+    historyRef.current.push({
+      imageData: context.getImageData(0, 0, canvas.width, canvas.height),
+      strokes: [...strokesRef.current],
+    })
     redoStackRef.current = []
     setCanUndo(true)
     setCanRedo(false)
@@ -67,8 +113,19 @@ export default function Home() {
     e.preventDefault()
     const canvas = canvasRef.current
     const { x, y } = getPos(e, canvas)
-    contextRef.current.beginPath()
-    contextRef.current.moveTo(x, y)
+
+    if (isErasing) {
+      erasedRef.current = false
+      setIsDrawing(true)
+      return
+    }
+
+    const ctx = contextRef.current
+    ctx.strokeStyle = currentColor
+    ctx.lineWidth = 2
+    currentStrokeRef.current = { points: [{ x, y }], color: currentColor }
+    ctx.beginPath()
+    ctx.moveTo(x, y)
     setIsDrawing(true)
   }
 
@@ -77,6 +134,18 @@ export default function Home() {
     e.preventDefault()
     const canvas = canvasRef.current
     const { x, y } = getPos(e, canvas)
+
+    if (isErasing) {
+      const newStrokes = strokesRef.current.filter(s => !strokeHitsPoint(s, x, y))
+      if (newStrokes.length !== strokesRef.current.length) {
+        strokesRef.current = newStrokes
+        redrawStrokes(newStrokes)
+        erasedRef.current = true
+      }
+      return
+    }
+
+    currentStrokeRef.current?.points.push({ x, y })
     contextRef.current.lineTo(x, y)
     contextRef.current.stroke()
   }
@@ -84,10 +153,24 @@ export default function Home() {
   const stopDrawing = (e) => {
     if (!isDrawing) return
     e?.preventDefault()
-    contextRef.current.closePath()
     setIsDrawing(false)
 
     const canvas = canvasRef.current
+
+    if (isErasing) {
+      if (erasedRef.current) {
+        saveSnapshot()
+        setDrawingBase64String(canvas.toDataURL("image/png"))
+      }
+      return
+    }
+
+    contextRef.current.closePath()
+    const stroke = currentStrokeRef.current
+    if (stroke && stroke.points.length > 0) {
+      strokesRef.current = [...strokesRef.current, stroke]
+    }
+    currentStrokeRef.current = null
     saveSnapshot()
     setDrawingBase64String(canvas.toDataURL("image/png"))
   }
@@ -98,7 +181,8 @@ export default function Home() {
     const context = contextRef.current
     redoStackRef.current.push(historyRef.current.pop())
     const prev = historyRef.current[historyRef.current.length - 1]
-    context.putImageData(prev, 0, 0)
+    context.putImageData(prev.imageData, 0, 0)
+    strokesRef.current = [...prev.strokes]
     const isBlank = historyRef.current.length === 1
     setCanUndo(!isBlank)
     setCanRedo(true)
@@ -111,7 +195,8 @@ export default function Home() {
     const context = contextRef.current
     const next = redoStackRef.current.pop()
     historyRef.current.push(next)
-    context.putImageData(next, 0, 0)
+    context.putImageData(next.imageData, 0, 0)
+    strokesRef.current = [...next.strokes]
     setCanUndo(true)
     setCanRedo(redoStackRef.current.length > 0)
     setDrawingBase64String(canvas.toDataURL("image/png"))
@@ -122,7 +207,8 @@ export default function Home() {
     const context = contextRef.current
     context.fillStyle = "white"
     context.fillRect(0, 0, canvas.width, canvas.height)
-    historyRef.current = [context.getImageData(0, 0, canvas.width, canvas.height)]
+    strokesRef.current = []
+    historyRef.current = [{ imageData: context.getImageData(0, 0, canvas.width, canvas.height), strokes: [] }]
     redoStackRef.current = []
     setCanUndo(false)
     setCanRedo(false)
@@ -130,18 +216,7 @@ export default function Home() {
   }
 
   const toggleEraser = () => {
-    const ctx = contextRef.current
-    if (!ctx) return
-    if (isErasing) {
-      ctx.globalCompositeOperation = "source-over"
-      ctx.strokeStyle = currentColor
-      ctx.lineWidth = 2
-      setIsErasing(false)
-    } else {
-      ctx.globalCompositeOperation = "destination-out"
-      ctx.lineWidth = 6
-      setIsErasing(true)
-    }
+    setIsErasing(prev => !prev)
   }
 
   const pickColor = (color) => {
@@ -151,13 +226,10 @@ export default function Home() {
       return [color, ...filtered].slice(0, 6)
     })
     if (contextRef.current) {
-      if (isErasing) {
-        contextRef.current.globalCompositeOperation = "source-over"
-        contextRef.current.lineWidth = 2
-        setIsErasing(false)
-      }
       contextRef.current.strokeStyle = color
+      contextRef.current.lineWidth = 2
     }
+    setIsErasing(false)
   }
 
   const handleSubmitData = async () => {
@@ -212,22 +284,21 @@ export default function Home() {
 
         <div className="flex items-center justify-between gap-2 flex-wrap">
 
-          {/* Colour picker button + recent swatches */}
+          {/* Colour picker + recent swatches */}
           <div className="inline-flex items-center gap-2">
             <button
               type="button"
               onClick={() => colorInputRef.current?.click()}
-              className="px-3 py-1.5 rounded-lg border-2 border-transparent font-semibold text-sm cursor-pointer transition ease-out duration-150 hover:opacity-85 active:opacity-70"
+              className="px-3 py-1.5 rounded-lg font-semibold text-sm cursor-pointer transition ease-out duration-150 hover:opacity-85 active:opacity-70"
               style={{
                 backgroundColor: currentColor,
                 color: isColorLight(currentColor) ? "#111" : "#fff",
-                borderColor: isColorLight(currentColor) ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.2)",
+                border: `2px solid ${isColorLight(currentColor) ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.2)"}`,
               }}
             >
               Colour
             </button>
 
-            {/* Hidden native colour input */}
             <input
               ref={colorInputRef}
               type="color"
