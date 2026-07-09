@@ -24,6 +24,21 @@ export async function insertDrawing(base64, type = "drawing") {
   return response
 }
 
+// Insert a photo straight into the drawings table via PostgREST.
+// Bypasses the insert-drawing edge function so type='photo' is always set,
+// even if that function hasn't been redeployed with type support.
+// Accepts a raw base64 string or a full data URL; the data-URL prefix is stripped.
+export async function insertPhoto(base64) {
+  const base64Only = base64.split(",")[1] || base64
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/drawings`, {
+    method: "POST",
+    headers: { ...authHeaders, "Content-Type": "application/json" },
+    body: JSON.stringify({ drawing_data: base64Only, type: "photo" }),
+  })
+  if (!response.ok) throw new Error("Insert failed")
+  return response
+}
+
 // Fetch rows of a given type from the drawings table (oldest first), via PostgREST.
 export async function fetchDrawings(type) {
   const response = await fetch(

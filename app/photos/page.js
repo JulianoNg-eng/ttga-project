@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import Nav from "../Nav"
-import { insertDrawing, fetchDrawings, deleteDrawing } from "../supabaseClient"
+import { insertPhoto, fetchDrawings, deleteDrawing } from "../supabaseClient"
 
 // Rebuild a data URL from stored base64 by sniffing the image type from its signature.
 function base64ToDataUrl(b64) {
@@ -16,12 +16,25 @@ function base64ToDataUrl(b64) {
   return `data:${mime};base64,${b64}`
 }
 
-function fileToDataUrl(file) {
+// Decode the file, draw it onto a canvas, and re-encode as a PNG data URL.
+function fileToPngDataUrl(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement("canvas")
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext("2d")
+      ctx.drawImage(img, 0, 0)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL("image/png"))
+    }
+    img.onerror = (error) => {
+      URL.revokeObjectURL(url)
+      reject(error)
+    }
+    img.src = url
   })
 }
 
@@ -53,8 +66,8 @@ export default function Photos() {
     setUploading(true)
     try {
       for (const file of files) {
-        const dataUrl = await fileToDataUrl(file)
-        await insertDrawing(dataUrl, "photo")
+        const dataUrl = await fileToPngDataUrl(file)
+        await insertPhoto(dataUrl)
       }
       await loadPhotos()
     } catch (error) {
