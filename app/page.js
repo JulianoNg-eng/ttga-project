@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import Nav from "./Nav"
+import { insertDrawing } from "./supabaseClient"
 
 const ERASER_RADIUS = 6
 
@@ -258,31 +260,21 @@ export default function Home() {
       alert("Please draw something first!")
       return
     }
-    const base64Only = drawingBase64String.split(',')[1] || drawingBase64String
     try {
-      const response = await fetch("https://gpftjspiqmbyotvdayro.supabase.co/functions/v1/insert-drawing", {
-        method: "POST",
-        headers: {
-          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdwZnRqc3BpcW1ieW90dmRheXJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3ODU4OTQsImV4cCI6MjA3OTM2MTg5NH0.9njRkviMnnfAcj6l8DmXP5fSjuC95aQZWhLDwGO-N0w",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ drawingBase64String: base64Only })
-      })
-      if (response.ok) {
-        alert("Drawing sent successfully! 💕")
-        clearCanvas()
-      } else {
-        alert("Failed to send drawing. Please try again.")
-      }
+      await insertDrawing(drawingBase64String, "drawing")
+      alert("Drawing sent successfully! 💕")
+      clearCanvas()
     } catch (error) {
       console.error("Error:", error)
-      alert("An error occurred. Please try again.")
+      alert("Failed to send drawing. Please try again.")
     }
   }
 
   return (
     <div className="min-h-screen bg-[#111] text-[#f5f5f5] flex items-center justify-center p-3 sm:p-4 font-sans">
       <div className="bg-[#1b1b1b] rounded-2xl p-4 sm:p-6 max-w-2xl w-full flex flex-col gap-3 sm:gap-4 shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
+
+        <Nav />
 
         <p className="m-0 text-center text-[1.3rem] sm:text-[1.6rem] font-semibold">
           Drawing for K!
