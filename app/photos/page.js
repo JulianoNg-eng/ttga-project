@@ -33,6 +33,8 @@ function fileToJpegDataUrl(file) {
       canvas.width = PHOTO_WIDTH
       canvas.height = PHOTO_HEIGHT
       const ctx = canvas.getContext("2d")
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = "high"
       ctx.fillStyle = "white"
       ctx.fillRect(0, 0, PHOTO_WIDTH, PHOTO_HEIGHT)
       // "cover": scale to fill the frame, center-cropping the overflow.
@@ -41,7 +43,7 @@ function fileToJpegDataUrl(file) {
       const dh = img.naturalHeight * scale
       ctx.drawImage(img, (PHOTO_WIDTH - dw) / 2, (PHOTO_HEIGHT - dh) / 2, dw, dh)
       URL.revokeObjectURL(url)
-      resolve(canvas.toDataURL("image/jpeg", 0.7))
+      resolve(canvas.toDataURL("image/jpeg", 0.9))
     }
     img.onerror = (error) => {
       URL.revokeObjectURL(url)
