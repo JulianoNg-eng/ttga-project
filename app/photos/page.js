@@ -16,17 +16,29 @@ function base64ToDataUrl(b64) {
   return `data:${mime};base64,${b64}`
 }
 
-// Decode the file, draw it onto a canvas, and re-encode as a PNG data URL.
+// ESP32 TFT resolution — photos are downscaled to this so they match the
+// drawings the device already displays and stay small enough for its RAM.
+const PHOTO_WIDTH = 160
+const PHOTO_HEIGHT = 128
+
+// Decode the file, downscale/center-crop it to PHOTO_WIDTH x PHOTO_HEIGHT on a
+// canvas, and re-encode as a PNG data URL.
 function fileToPngDataUrl(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const img = new Image()
     img.onload = () => {
       const canvas = document.createElement("canvas")
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
+      canvas.width = PHOTO_WIDTH
+      canvas.height = PHOTO_HEIGHT
       const ctx = canvas.getContext("2d")
-      ctx.drawImage(img, 0, 0)
+      ctx.fillStyle = "white"
+      ctx.fillRect(0, 0, PHOTO_WIDTH, PHOTO_HEIGHT)
+      // "cover": scale to fill the frame, center-cropping the overflow.
+      const scale = Math.max(PHOTO_WIDTH / img.naturalWidth, PHOTO_HEIGHT / img.naturalHeight)
+      const dw = img.naturalWidth * scale
+      const dh = img.naturalHeight * scale
+      ctx.drawImage(img, (PHOTO_WIDTH - dw) / 2, (PHOTO_HEIGHT - dh) / 2, dw, dh)
       URL.revokeObjectURL(url)
       resolve(canvas.toDataURL("image/png"))
     }
