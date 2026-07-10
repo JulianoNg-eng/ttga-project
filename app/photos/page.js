@@ -22,8 +22,9 @@ const PHOTO_WIDTH = 160
 const PHOTO_HEIGHT = 128
 
 // Decode the file, downscale/center-crop it to PHOTO_WIDTH x PHOTO_HEIGHT on a
-// canvas, and re-encode as a PNG data URL.
-function fileToPngDataUrl(file) {
+// canvas, and re-encode as a JPEG data URL. JPEG (~5KB) instead of PNG (~40KB)
+// keeps photos small enough for the ESP32's heap to fetch + decode.
+function fileToJpegDataUrl(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const img = new Image()
@@ -40,7 +41,7 @@ function fileToPngDataUrl(file) {
       const dh = img.naturalHeight * scale
       ctx.drawImage(img, (PHOTO_WIDTH - dw) / 2, (PHOTO_HEIGHT - dh) / 2, dw, dh)
       URL.revokeObjectURL(url)
-      resolve(canvas.toDataURL("image/png"))
+      resolve(canvas.toDataURL("image/jpeg", 0.7))
     }
     img.onerror = (error) => {
       URL.revokeObjectURL(url)
@@ -78,7 +79,7 @@ export default function Photos() {
     setUploading(true)
     try {
       for (const file of files) {
-        const dataUrl = await fileToPngDataUrl(file)
+        const dataUrl = await fileToJpegDataUrl(file)
         await insertPhoto(dataUrl)
       }
       await loadPhotos()
