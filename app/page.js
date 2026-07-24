@@ -4,7 +4,15 @@ import { useState, useRef, useEffect } from "react"
 import Nav from "./Nav"
 import { insertDrawing } from "./supabaseClient"
 
-const ERASER_RADIUS = 6
+// ESP32 ST7796S TFT in landscape — the exported bitmap must be exactly this.
+// PNGs are drawn 1:1 and clipped if oversized, so nothing can be "roughly" sized.
+const CANVAS_WIDTH = 480
+const CANVAS_HEIGHT = 320
+
+// Brush + eraser scaled 3x from the old 160-wide canvas (480/160) so strokes
+// keep the same on-screen thickness now that the bitmap is 3x wider.
+const LINE_WIDTH = 6
+const ERASER_RADIUS = 18
 
 // 8 columns × 7 rows colour grid
 const PALETTE = [
@@ -70,12 +78,12 @@ export default function Home() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    canvas.width = 160
-    canvas.height = 128
+    canvas.width = CANVAS_WIDTH
+    canvas.height = CANVAS_HEIGHT
     const context = canvas.getContext("2d")
     context.lineCap = "round"
     context.lineJoin = "round"
-    context.lineWidth = 2
+    context.lineWidth = LINE_WIDTH
     context.strokeStyle = currentColor
     contextRef.current = context
     context.fillStyle = "white"
@@ -108,7 +116,7 @@ export default function Home() {
       if (stroke.points.length === 0) return
       context.beginPath()
       context.strokeStyle = stroke.color
-      context.lineWidth = 2
+      context.lineWidth = LINE_WIDTH
       context.lineCap = "round"
       context.lineJoin = "round"
       context.moveTo(stroke.points[0].x, stroke.points[0].y)
@@ -116,7 +124,7 @@ export default function Home() {
       context.stroke()
     })
     context.strokeStyle = currentColor
-    context.lineWidth = 2
+    context.lineWidth = LINE_WIDTH
   }
 
   const saveSnapshot = () => {
@@ -151,7 +159,7 @@ export default function Home() {
     }
     const ctx = contextRef.current
     ctx.strokeStyle = currentColor
-    ctx.lineWidth = 2
+    ctx.lineWidth = LINE_WIDTH
     currentStrokeRef.current = { points: [{ x, y }], color: currentColor }
     ctx.beginPath()
     ctx.moveTo(x, y)
@@ -249,7 +257,7 @@ export default function Home() {
     })
     if (contextRef.current) {
       contextRef.current.strokeStyle = color
-      contextRef.current.lineWidth = 2
+      contextRef.current.lineWidth = LINE_WIDTH
     }
     setIsErasing(false)
     setShowPicker(false)
@@ -289,7 +297,7 @@ export default function Home() {
           onTouchStart={startDrawing}
           onTouchMove={draw}
           onTouchEnd={stopDrawing}
-          className={`w-full aspect-[5/4] border-[3px] border-black rounded-lg bg-white block touch-none ${isErasing ? "cursor-cell" : "cursor-crosshair"}`}
+          className={`w-full aspect-[3/2] border-[3px] border-black rounded-lg bg-white block touch-none ${isErasing ? "cursor-cell" : "cursor-crosshair"}`}
         />
 
         <div className="flex items-center justify-between gap-2 flex-wrap">

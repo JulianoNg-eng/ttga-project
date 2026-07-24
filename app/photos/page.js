@@ -16,14 +16,14 @@ function base64ToDataUrl(b64) {
   return `data:${mime};base64,${b64}`
 }
 
-// ESP32 TFT resolution — photos are downscaled to this so they match the
-// drawings the device already displays and stay small enough for its RAM.
-const PHOTO_WIDTH = 160
-const PHOTO_HEIGHT = 128
+// ESP32 ST7796S TFT resolution in landscape — photos are resized to exactly
+// this so they draw 1:1 on the frame and stay small enough for its RAM.
+const PHOTO_WIDTH = 480
+const PHOTO_HEIGHT = 320
 
 // Decode the file, downscale/center-crop it to PHOTO_WIDTH x PHOTO_HEIGHT on a
-// canvas, and re-encode as a JPEG data URL. JPEG (~5KB) instead of PNG (~40KB)
-// keeps photos small enough for the ESP32's heap to fetch + decode.
+// canvas, and re-encode as a JPEG data URL. A 480x320 JPEG (~40-80KB) instead
+// of PNG (400KB+) keeps photos inside the ESP32's heap to fetch + decode.
 function fileToJpegDataUrl(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
@@ -43,7 +43,7 @@ function fileToJpegDataUrl(file) {
       const dh = img.naturalHeight * scale
       ctx.drawImage(img, (PHOTO_WIDTH - dw) / 2, (PHOTO_HEIGHT - dh) / 2, dw, dh)
       URL.revokeObjectURL(url)
-      resolve(canvas.toDataURL("image/jpeg", 0.9))
+      resolve(canvas.toDataURL("image/jpeg", 0.85))
     }
     img.onerror = (error) => {
       URL.revokeObjectURL(url)
@@ -140,7 +140,7 @@ export default function Photos() {
             {photos.map((photo) => (
               <div
                 key={photo.id}
-                className="relative group aspect-square rounded-lg overflow-hidden border border-[#333] bg-[#242424]"
+                className="relative group aspect-[3/2] rounded-lg overflow-hidden border border-[#333] bg-[#242424]"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
